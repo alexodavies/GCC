@@ -9,7 +9,7 @@
 -------------------------------------
 
 ## alexodavies non-connected fork
-Updated to newer Python and library versions (torch 2.3)
+Updated to newer Python and library versions (torch 2.3.*, Python >= 3.11, etc.)
 
 # GCC: Graph Contrastive Coding for Graph Neural Network Pre-Training
 
@@ -198,6 +198,8 @@ See the P.S. section in [this](https://github.com/THUDM/GCC/issues/12#issue-7520
 
 If you use GCC in your research or wish to refer to the baseline results, please use the following BibTeX.
 
+**Still cite this paper if using this updated repo**
+
 ```
 @article{qiu2020gcc,
   title={GCC: Graph Contrastive Coding for Graph Neural Network Pre-Training},
@@ -209,4 +211,10 @@ If you use GCC in your research or wish to refer to the baseline results, please
 
 ## Acknowledgements
 
+Original credit to:
+
+Original implementation for paper [GCC: Graph Contrastive Coding for Graph Neural Network Pre-Training](https://arxiv.org/abs/2006.09963).
+
 Part of this code is inspired by Yonglong Tian et al.'s [CMC: Contrastive Multiview Coding](https://github.com/HobbitLong/CMC).
+
+Updated to modern Python by [alexodavies](https://github.com/alexodavies)

@@ -9,13 +9,14 @@ import dgl
 import torch
 import torch.nn as nn
 from ogb.graphproppred import DglGraphPropPredDataset, Evaluator
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from gcc.models import GraphEncoder, OGBGraphEncoder
 from gcc.utils.misc import AverageMeter
 import random
 import warnings
 import wandb
 from datetime import datetime
+from tqdm import tqdm
 warnings.filterwarnings("ignore")
 
 
@@ -30,7 +31,11 @@ def setup_wandb(cfg, offline = False, name = None):
     param: cfg: same config
     """
 
-    kwargs = {'name': name if name is not None else 'all' + datetime.now().strftime("%m-%d-%Y-%H-%M-%S"), 'project': f'gcl-validation-reiteration', 'config': cfg,
+    # print(cfg.dataset, cfg.load_path)
+    dataset = cfg.dataset
+    model = cfg.load_path.split('/')[1]
+
+    kwargs = {'name': dataset + "-" + model, 'project': f'gcl-validation-reiteration', 'config': cfg,
               'settings': wandb.Settings(_disable_stats=False), 'reinit': True, 'entity':'hierarchical-diffusion',
               'mode':'online' if offline else 'online'}
     wandb.init(**kwargs)
@@ -40,10 +45,10 @@ def setup_wandb(cfg, offline = False, name = None):
 
 def parse_option():
     parser = argparse.ArgumentParser("Supervised graph classification finetuning with OGB support")
-    parser.add_argument("--batch-size", type=int, default=128, help="Batch size")
+    parser.add_argument("--batch-size", type=int, default=512, help="Batch size")
     parser.add_argument("--num-workers", type=int, default=4, help="Number of workers")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
-    parser.add_argument("--learning-rate", type=float, default=0.005, help="Learning rate")
+    parser.add_argument("--learning-rate", type=float, default=0.001, help="Learning rate")
     parser.add_argument("--weight-decay", type=float, default=1e-5, help="Weight decay")
     parser.add_argument("--dataset", type=str, default="ogbg-molhiv", help="OGB dataset for finetuning")
     parser.add_argument("--gpu", type=int, default=0, help="GPU ID")
@@ -78,18 +83,20 @@ def train_finetune(epoch, train_loader, model, output_layer, criterion, optimize
     output_layer.train()
     loss_meter = AverageMeter()
     f1_meter = AverageMeter()
-
+    label_n, label_sum = 0, 0
     for idx, (graphs, labels) in enumerate(train_loader):
         optimizer.zero_grad()
         graphs = graphs.to(device)
         labels = labels.to(device)#.view(-1)
+        if labels.shape[1] > 1:
+            labels = labels.argmax(dim=1).reshape(-1,1)
 
         feat_q = model(graphs)
         out = output_layer(feat_q)
         out = torch.sigmoid(out)
         # print(out)
-        if out.shape[1] > 1:
-            out = torch.softmax(out, dim = 1)
+        # if out.shape[1] > 1:
+        #     out = torch.softmax(out, dim = 1)
 
         loss = criterion(out, labels.to(torch.float32))
 
@@ -98,22 +105,29 @@ def train_finetune(epoch, train_loader, model, output_layer, criterion, optimize
         loss.backward()
         optimizer.step()
 
-        if out.shape[1] > 1:
-            preds = out.argmax(dim=1)
-        else:
-            preds = torch.round(out)
-        if labels.shape[1] > 1:
-            labels = labels.argmax(dim=1)
-        f1 = f1_score(labels.cpu().numpy(), preds.detach().cpu().numpy())
+        # if out.shape[1] > 1:
+        #     preds = out.argmax(dim=1)
+        # else:
+        #     preds = torch.round(out)
+        # if labels.shape[1] > 1:
+        #     labels = labels.argmax(dim=1)
+        preds = torch.round(out)
+        f1 = accuracy_score(labels.cpu().numpy(), preds.detach().cpu().numpy())
 
         loss_meter.update(loss.item(), graphs.batch_size)
         f1_meter.update(f1, graphs.batch_size)
 
-        if (idx + 1) % 10 == 0:
-            print(f"Epoch [{epoch}] Iter [{idx + 1}/{len(train_loader)}] Loss: {loss_meter.avg:.4f} F1: {f1_meter.avg:.4f}")
+        # if (idx + 1) % 10 == 0:
+        #     print(f"Epoch [{epoch}] Iter [{idx + 1}/{len(train_loader)}] Loss: {loss_meter.avg:.4f} Accuracy: {f1_meter.avg:.4f}")
 
-        wandb.log({"Train Loss":loss_meter.avg,
-            "F1":f1_meter.avg})
+
+        
+        label_n += labels.cpu().numpy().shape[0]
+        label_sum += torch.sum(labels)
+
+    wandb.log({"Train Loss":loss_meter.avg,
+    "Accuracy Train":f1_meter.avg,
+        "Label Weighting Train": label_sum/label_n})
     return loss_meter.avg, f1_meter.avg
 
 def test_finetune(valid_loader, model, output_layer, criterion, device, evaluator):
@@ -122,40 +136,49 @@ def test_finetune(valid_loader, model, output_layer, criterion, device, evaluato
     loss_meter = AverageMeter()
     f1_meter = AverageMeter()
     roc_meter = AverageMeter()
-
+    label_n, label_sum = 0, 0
     with torch.no_grad():
         for graphs, labels in valid_loader:
             graphs = graphs.to(device)
             labels = labels.to(device)
+            if labels.shape[1] > 1:
+                labels = labels.argmax(dim=1).reshape(-1,1)
+
 
             feat_q = model(graphs)
             out = output_layer(feat_q)
             out = torch.sigmoid(out)
             # print(out)
-            if out.shape[1] > 1:
-                out = torch.softmax(out, dim = 1)
+            # if out.shape[1] > 1:
+            #     out = torch.softmax(out, dim = 1)
 
             loss = criterion(out, labels.to(torch.float32))
 
-            if out.shape[1] > 1:
-                preds = out.argmax(dim=1)
-            else:
-                preds = torch.round(out)
-            if labels.shape[1] > 1:
-                labels = labels.argmax(dim=1)
-            f1 = f1_score(labels.cpu().numpy(), preds.cpu().numpy())
+            # if out.shape[1] > 1:
+            #     preds = out.argmax(dim=1)
+            # else:
+            #     preds = torch.round(out)
+            # if labels.shape[1] > 1:
+            #     labels = labels.argmax(dim=1)
+            preds = torch.round(out)
+            f1 = accuracy_score(labels.cpu().numpy(), preds.cpu().numpy())
 
             loss_meter.update(loss.item(), graphs.batch_size)
             f1_meter.update(f1, graphs.batch_size)
+            # print(labels.cpu().numpy()[:10], preds.cpu().numpy()[:10])
             try:
                 roc = roc_auc_score(labels.cpu().numpy(), preds.cpu().numpy())
                 roc_meter.update(roc, graphs.batch_size)
             except:
+                print(labels.cpu().numpy())
                 pass
+            label_n += labels.cpu().numpy().shape[0]
+            label_sum += torch.sum(labels)
     wandb.log({"Val Loss":loss_meter.avg,
-              "F1":f1_meter.avg,
-              "ROC":roc_meter.avg})
-    print(f"Validation Loss: {loss_meter.avg:.4f} F1: {f1_meter.avg:.4f} ROC: {roc_meter.avg:.4f}")
+              "Accuracy":f1_meter.avg,
+              "ROC":roc_meter.avg,
+              "Label Weighting": label_sum/label_n})
+    # print(f"Validation Loss: {loss_meter.avg:.4f} Accuracy: {f1_meter.avg:.4f} ROC: {roc_meter.avg:.4f}")
     return loss_meter.avg, f1_meter.avg, roc_meter.avg
 
 def load_gnn_layers_only(model, pretrained_path):
@@ -177,7 +200,7 @@ def load_gnn_layers_only(model, pretrained_path):
     # Load the updated state_dict into the model
     model.load_state_dict(model_dict)
 
-    print(f"Loaded GNN layers from {pretrained_path} into the current model.")
+    # print(f"Loaded GNN layers from {pretrained_path} into the current model.")
 
 def get_model(node_input_dim, edge_input_dim, num_tasks, device, args):
 
@@ -261,13 +284,16 @@ def main():
 
     best_f1 = 0
     rocs = []
-    for i in range(10):
-        model, criterion, optimizer, output_layer = get_model(node_input_dim, edge_input_dim, dataset.num_tasks, device, args)
-
-        for epoch in range(0, args.epochs):
+    for i in tqdm(range(10), colour='red'):
+        model, criterion, optimizer, output_layer = get_model(node_input_dim, edge_input_dim, 1, device, args)
+        model = model.to(device)
+        output_layer = output_layer.to(device)
+        pbar_epochs = tqdm(range(0, args.epochs), colour='green', leave = False)
+        for epoch in pbar_epochs:
             train_finetune(epoch, train_loader, model, output_layer, criterion, optimizer, device)
             if epoch % 10 == 0 or epoch == 0:
                 val_loss, val_f1, roc = test_finetune(valid_loader, model, output_layer, criterion, device, evaluator)
+                pbar_epochs.set_postfix({"Val Loss":val_loss, "Val F1":val_f1, "ROC":roc})
         rocs.append(roc)
         
         # # Save model if performance improves
@@ -276,7 +302,7 @@ def main():
         #     save_path = os.path.join(args.model_path, f"best_model.pth")
         #     torch.save(model.state_dict(), save_path)
         #     print(f"Best model saved at epoch {epoch} with F1: {best_f1:.4f}")
-
+    print(f"Mean ROC: {np.mean(rocs)} Dev ROC: {np.std(rocs)}")
     wandb.log({"Mean ROC":np.mean(rocs),
                "Dev ROC":np.std(rocs)})
 

@@ -1,0 +1,42 @@
+{
+  "os":  "macOS-14.7-arm64-arm-64bit",
+  "python":  "3.11.9",
+  "startedAt":  "2024-10-08T15:45:51.896765Z",
+  "args":  [
+    "--dataset",
+    "ogbg-molbace",
+    "--gpu",
+    "0",
+    "--load-path",
+    "saved/moco/current.pth",
+    "--epochs",
+    "50"
+  ],
+  "program":  "/Users/qj19962/Projects/benchmarks/GCC/train_supervised_ogb.py",
+  "codePath":  "train_supervised_ogb.py",
+  "git":  {
+    "remote":  "https://github.com/THUDM/GCC.git",
+    "commit":  "20398aac95957784865d6c78bc46ead605221f0d"
+  },
+  "email":  "alexander.davies@bristol.ac.uk",
+  "root":  "/Users/qj19962/Projects/benchmarks/GCC",
+  "host":  "FVFG54B3Q05N",
+  "username":  "qj19962",
+  "executable":  "/opt/anaconda3/envs/dgl-base/bin/python",
+  "codePathLocal":  "train_supervised_ogb.py",
+  "cpu_count":  8,
+  "cpu_count_logical":  8,
+  "disk":  {
+    "/":  {
+      "total":  "494384795648",
+      "used":  "369885859840"
+    }
+  },
+  "memory":  {
+    "total":  "17179869184"
+  },
+  "cpu":  {
+    "count":  8,
+    "countLogical":  8
+  }
+}

@@ -1,0 +1,1 @@
+{"Val Loss":0.3775203421309188,"Train Loss":0.38711810278549325,"_timestamp":1.728412721537329e+09,"_step":5050,"_runtime":10196.335426,"_wandb":{"runtime":10196},"Mean ROC":0.5,"Dev ROC":0,"ROC":0.5,"F1":0}

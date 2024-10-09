@@ -8,6 +8,9 @@
 
 -------------------------------------
 
+## alexodavies non-connected fork
+Updated to newer Python and library versions (torch 2.3)
+
 # GCC: Graph Contrastive Coding for Graph Neural Network Pre-Training
 
 Original implementation for paper [GCC: Graph Contrastive Coding for Graph Neural Network Pre-Training](https://arxiv.org/abs/2006.09963).

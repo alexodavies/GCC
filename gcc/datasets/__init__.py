@@ -4,6 +4,7 @@ from .graph_dataset import (
     LoadBalanceGraphDataset,
     NodeClassificationDataset,
     NodeClassificationDatasetLabeled,
+    OGBGraphClassificationDataset,
     worker_init_fn,
 )
 
@@ -16,5 +17,6 @@ __all__ = [
     "GraphClassificationDatasetLabeled",
     "NodeClassificationDataset",
     "NodeClassificationDatasetLabeled",
+    "OGBGraphClassificationDataset",
     "worker_init_fn",
 ]

@@ -292,11 +292,17 @@ class NodeClassificationDataset(GraphDataset):
         self.positional_embedding_size = positional_embedding_size
         self.step_dist = step_dist
         assert positional_embedding_size > 1
-
-        self.data = data_util.create_node_classification_dataset(dataset).data
-        self.graphs = [self._create_dgl_graph(self.data)]
-        self.length = sum([g.number_of_nodes() for g in self.graphs])
-        self.total = self.length
+        if dataset is str:
+            self.data = data_util.create_node_classification_dataset(dataset).data
+            self.graphs = [self._create_dgl_graph(self.data)]
+            self.length = sum([g.number_of_nodes() for g in self.graphs])
+            self.total = self.length
+        else:
+            self.data = dataset # [g[0] for g in dataset]
+            # self.graphs = [self._create_dgl_graph(self.data)]
+            # print(self.data[0][0])
+            self.length = sum([g[0].num_nodes() for g in self.data])
+            self.total = self.length
 
     def _create_dgl_graph(self, data):
         graph = dgl.graph((data.edge_index[0], data.edge_index[1]))
@@ -325,6 +331,89 @@ class GraphClassificationDataset(NodeClassificationDataset):
 
     def _convert_idx(self, idx):
         graph_idx = idx
+        node_idx = self.graphs[idx].out_degrees().argmax().item()
+        return graph_idx, node_idx
+    
+class OGBGraphClassificationDataset(NodeClassificationDataset):
+    def __init__(
+        self,
+        dataset,
+        rw_hops=64,
+        subgraph_size=64,
+        restart_prob=0.8,
+        positional_embedding_size=32,
+        step_dist=[1.0, 0.0, 0.0],
+    ):
+        super(OGBGraphClassificationDataset, self).__init__(
+            dataset, rw_hops, subgraph_size, restart_prob, positional_embedding_size, step_dist
+        )
+        self.entire_graph = True
+        self.split_idx = dataset.get_idx_split()
+        self.labels = [g[1] for g in dataset]  # Extract labels from the dataset
+        for g in dataset:
+            g[0].ndata.pop('feat')  # Remove node features if not needed
+            g[0].edata.pop('feat')  # Remove edge features if not needed
+        
+        self.graphs = [g[0] for g in dataset]  # Extract the graphs from the dataset
+        self.length = len(self.graphs)
+        self.total = self.length
+
+    # def __getitem__(self, idx):
+    #     graph = self.graphs[idx]  # Get the graph
+    #     label = self.labels[idx]  # Get the corresponding label
+    #     return graph, label  # Return the graph and its label
+    
+
+    def __getitem__(self, idx):
+        graph_idx, node_idx = self._convert_idx(idx)
+        label = self.labels[idx]  # Get the corresponding label
+
+        step = np.random.choice(len(self.step_dist), 1, p=self.step_dist)[0]
+        if step == 0:
+            other_node_idx = node_idx
+        else:
+            walk_result = dgl.sampling.random_walk(
+                g=self.graphs[graph_idx], seeds=[node_idx], num_traces=1, num_hops=step
+            )
+            other_node_idx = walk_result[0][0][-1].item()
+
+        max_nodes_per_seed = max(
+            self.rw_hops,
+            int(
+                (
+                    self.graphs[graph_idx].out_degrees(node_idx)
+                    * math.e
+                    / (math.e - 1)
+                    / self.restart_prob
+                )
+                + 0.5
+            ),
+        )
+        traces = random_walk_with_restart(
+            self.graphs[graph_idx],
+            seeds=[node_idx, other_node_idx],
+            restart_prob=self.restart_prob,
+            max_nodes_per_seed=max_nodes_per_seed,
+        )
+
+        graph_q = data_util._rwr_trace_to_dgl_graph(
+            g=self.graphs[graph_idx],
+            seed=node_idx,
+            trace=traces[0],
+            positional_embedding_size=self.positional_embedding_size,
+        )
+        graph_k = data_util._rwr_trace_to_dgl_graph(
+            g=self.graphs[graph_idx],
+            seed=other_node_idx,
+            trace=traces[1],
+            positional_embedding_size=self.positional_embedding_size,
+        )
+        return graph_q, graph_k, label
+
+
+    def _convert_idx(self, idx):
+        graph_idx = idx
+        # print(self.graphs[idx])
         node_idx = self.graphs[idx].out_degrees().argmax().item()
         return graph_idx, node_idx
 

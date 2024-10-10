@@ -21,6 +21,7 @@ import torch
 import torch.nn.functional as F
 from dgl.data.tu import TUDataset
 from scipy.sparse import linalg
+from ogb.graphproppred import DglGraphPropPredDataset
 
 
 # Moved batcher_dev outside of batcher
@@ -60,7 +61,28 @@ def create_graph_classification_dataset(dataset_name):
     return dataset
 
 
+
 class Edgelist(object):
+    """
+    A class to represent an edge list and associated node labels for a graph.
+    Attributes:
+    -----------
+    name : str
+        The name of the dataset.
+    data : Data
+        The processed data containing edge indices and node labels.
+    transform : None
+        Placeholder for potential data transformations.
+    Methods:
+    --------
+    __init__(self, root, name):
+        Initializes the Edgelist object with the given root directory and dataset name.
+    get(self, idx):
+        Returns the processed data. Only supports idx == 0.
+    _preprocess(self, edge_list_path, node_label_path):
+        Processes the edge list and node label files to create edge indices and node labels.
+    """
+
     def __init__(self, root, name):
         self.name = name
         edge_list_path = os.path.join(root, name + ".edgelist")

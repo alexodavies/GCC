@@ -20,6 +20,29 @@ from tqdm import tqdm
 warnings.filterwarnings("ignore")
 
 
+def summarize_model(model):
+    """
+    Prints the layers of the model, total trainable parameters, and model size in MB.
+    
+    Args:
+    model (torch.nn.Module): The PyTorch model to summarize.
+    """
+    
+    # List model layers
+    print("Model Layers:")
+    for name, layer in model.named_children():
+        print(f"{name}: {layer.__class__.__name__}")
+
+    # Calculate the total number of parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    # Model size (in MB)
+    model_size = total_params * 4 / (1024 ** 2)  # Assuming 32-bit (4 bytes per float)
+
+    print(f"\nModel Size: {model_size:.2f} MB")
+    print(f"Trainable Parameters: {trainable_params}")
+
 def setup_wandb(cfg, offline = False, name = None):
     """
     Uses a config dictionary to initialise wandb to track sampling.
@@ -232,7 +255,7 @@ def get_model(node_input_dim, edge_input_dim, num_tasks, device, args):
 def main():
     
     args = parse_option()
-    setup_wandb(args)
+    # setup_wandb(args)
     device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu")
 
     print(f"Loading OGB dataset {args.dataset} for fine-tuning")
@@ -286,6 +309,8 @@ def main():
     rocs = []
     for i in tqdm(range(10), colour='red'):
         model, criterion, optimizer, output_layer = get_model(node_input_dim, edge_input_dim, 1, device, args)
+        summarize_model(model)
+        quit()
         model = model.to(device)
         output_layer = output_layer.to(device)
         pbar_epochs = tqdm(range(0, args.epochs), colour='green', leave = False)

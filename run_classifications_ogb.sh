@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # List of datasets to iterate over
-datasets=("ogbg-molclintox" "ogbg-molbbbp" "ogbg-molbace" "ogbg-molhiv")
+datasets=("ogbg-molclintox") #  "ogbg-molbbbp" "ogbg-molbace" "ogbg-molhiv")
 
 # Training parameters
 gpu=0
